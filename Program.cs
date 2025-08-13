@@ -14,8 +14,21 @@ class Program
         try
         {
             // Build configuration
+            var basePath = GetApplicationBasePath();
+            Console.WriteLine($"Looking for configuration files in: {basePath}");
+            
+            var configFilePath = Path.Combine(basePath, "appsettings.json");
+            if (!File.Exists(configFilePath))
+            {
+                Console.WriteLine($"Configuration file not found at: {configFilePath}");
+                Console.WriteLine("Please ensure appsettings.json exists in the application directory.");
+                return;
+            }
+            
+            Console.WriteLine($"Configuration file found at: {configFilePath}");
+            
             var configuration = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
+                .SetBasePath(basePath)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .Build();
 
@@ -112,5 +125,52 @@ class Program
         // Add services
         services.AddScoped<IDataverseService, DataverseService>();
         services.AddScoped<ICsvExportService, CsvExportService>();
+    }
+
+    private static string GetApplicationBasePath()
+    {
+        // Try to get the directory where the executable is located
+        var executablePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+        if (!string.IsNullOrEmpty(executablePath))
+        {
+            var executableDir = Path.GetDirectoryName(executablePath);
+            if (!string.IsNullOrEmpty(executableDir))
+            {
+                // If we're in a build output directory, try to go up to the project root
+                if (executableDir.Contains("bin") || executableDir.Contains("obj"))
+                {
+                    var projectRoot = FindProjectRoot(executableDir);
+                    if (!string.IsNullOrEmpty(projectRoot))
+                    {
+                        return projectRoot;
+                    }
+                }
+                return executableDir;
+            }
+        }
+
+        // Fallback to current directory
+        return Directory.GetCurrentDirectory();
+    }
+
+    private static string? FindProjectRoot(string startPath)
+    {
+        var current = startPath;
+        while (!string.IsNullOrEmpty(current))
+        {
+            // Look for project file (.csproj) or appsettings.json
+            if (File.Exists(Path.Combine(current, "appsettings.json")) ||
+                Directory.GetFiles(current, "*.csproj").Any())
+            {
+                return current;
+            }
+            
+            var parent = Directory.GetParent(current);
+            if (parent == null)
+                break;
+                
+            current = parent.FullName;
+        }
+        return null;
     }
 }
