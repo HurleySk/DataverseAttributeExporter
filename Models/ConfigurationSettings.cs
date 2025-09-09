@@ -8,4 +8,5 @@ public class ConfigurationSettings
     public string PublisherPrefix { get; set; } = string.Empty;
     public string OutputFilePath { get; set; } = "attribute_metadata.csv";
     public bool IncludeSystemEntities { get; set; } = false;
+    public bool ExcludeOotbAttributes { get; set; } = true;
 }

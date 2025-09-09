@@ -42,7 +42,7 @@ public class DataverseService : IDataverseService
         }
     }
 
-    public async Task<List<Models.AttributeMetadata>> GetAttributeMetadataAsync(string publisherPrefix, bool includeSystemEntities = false)
+    public async Task<List<Models.AttributeMetadata>> GetAttributeMetadataAsync(string publisherPrefix, bool includeSystemEntities = false, bool excludeOotbAttributes = true)
     {
         if (_serviceClient == null || !_serviceClient.IsReady)
         {
@@ -69,25 +69,30 @@ public class DataverseService : IDataverseService
 
             foreach (var entityMetadata in entityMetadataCollection)
             {
-                // Skip system entities if not requested
-                if (!includeSystemEntities && (entityMetadata.IsCustomEntity == false))
+                var entitySchemaName = entityMetadata.SchemaName;
+                bool includeEntity = false;
+
+                // Determine if we should include this entity
+                if (string.IsNullOrEmpty(publisherPrefix))
                 {
-                    continue;
+                    // Blank prefix means OOTB entities only (no prefixed entities)
+                    includeEntity = entityMetadata.IsCustomEntity == false;
+                }
+                else
+                {
+                    // Non-blank prefix means entities with that specific prefix only
+                    includeEntity = entitySchemaName?.StartsWith(publisherPrefix + "_", StringComparison.OrdinalIgnoreCase) == true;
                 }
 
-                // Check if entity has the specified publisher prefix or if we want all entities for this publisher
-                var entitySchemaName = entityMetadata.SchemaName;
-                if (!string.IsNullOrEmpty(publisherPrefix))
+                // Apply system entities filter
+                if (!includeSystemEntities && entityMetadata.IsCustomEntity == false)
                 {
-                    var hasCustomAttributes = entityMetadata.Attributes?.Any(attr => 
-                        attr.SchemaName?.StartsWith(publisherPrefix + "_", StringComparison.OrdinalIgnoreCase) == true) ?? false;
-                    
-                    var isCustomEntity = entitySchemaName?.StartsWith(publisherPrefix + "_", StringComparison.OrdinalIgnoreCase) == true;
-                    
-                    if (!hasCustomAttributes && !isCustomEntity)
-                    {
-                        continue;
-                    }
+                    includeEntity = false;
+                }
+
+                if (!includeEntity)
+                {
+                    continue;
                 }
 
                 var entityDisplayName = entityMetadata.DisplayName?.UserLocalizedLabel?.Label ?? entitySchemaName ?? "Unknown";
@@ -99,23 +104,34 @@ public class DataverseService : IDataverseService
                     foreach (var attributeMetadata in entityMetadata.Attributes)
                     {
                         var attributeSchemaName = attributeMetadata.SchemaName;
-                        
-                        // If publisher prefix is specified, filter attributes
-                        if (!string.IsNullOrEmpty(publisherPrefix))
+                        bool includeAttribute = true;
+
+                        // Apply attribute filtering based on excludeOotbAttributes setting
+                        if (excludeOotbAttributes)
                         {
-                            // Include attributes that match the publisher prefix or system attributes on matching entities
-                            var isCustomAttribute = attributeSchemaName?.StartsWith(publisherPrefix + "_", StringComparison.OrdinalIgnoreCase) == true;
-                            var isEntityMatch = entitySchemaName?.StartsWith(publisherPrefix + "_", StringComparison.OrdinalIgnoreCase) == true;
-                            
-                            if (!isCustomAttribute && !isEntityMatch)
+                            if (string.IsNullOrEmpty(publisherPrefix))
                             {
-                                continue;
+                                // For blank prefix (OOTB entities), exclude prefixed attributes
+                                includeAttribute = !HasPrefix(attributeSchemaName);
                             }
+                            else
+                            {
+                                // For specific prefix, only include attributes with that prefix
+                                includeAttribute = attributeSchemaName?.StartsWith(publisherPrefix + "_", StringComparison.OrdinalIgnoreCase) == true;
+                            }
+                        }
+                        // If excludeOotbAttributes is false, include all attributes from the included entities
+
+                        if (!includeAttribute)
+                        {
+                            continue;
                         }
 
                         var attributeDisplayName = attributeMetadata.DisplayName?.UserLocalizedLabel?.Label ?? attributeSchemaName ?? "Unknown";
                         var attributeType = attributeMetadata.AttributeType?.ToString() ?? "Unknown";
                         var attributeDescription = attributeMetadata.Description?.UserLocalizedLabel?.Label ?? string.Empty;
+                        
+                        var (dataverseFormat, formatDetails) = GetDataverseFormatInfo(attributeMetadata);
 
                         var metadata = new Models.AttributeMetadata
                         {
@@ -124,6 +140,8 @@ public class DataverseService : IDataverseService
                             AttributeSchemaName = attributeSchemaName ?? string.Empty,
                             AttributeDisplayName = attributeDisplayName,
                             AttributeType = attributeType,
+                            DataverseFormat = dataverseFormat,
+                            FormatDetails = formatDetails,
                             AttributeDescription = attributeDescription,
                             PublisherPrefix = publisherPrefix
                         };
@@ -159,5 +177,193 @@ public class DataverseService : IDataverseService
     public void Dispose()
     {
         Disconnect();
+    }
+
+    private static bool HasPrefix(string? attributeName)
+    {
+        if (string.IsNullOrEmpty(attributeName))
+            return false;
+
+        // Check if the attribute name contains an underscore (indicating a prefix)
+        // and doesn't start with common system prefixes
+        var systemPrefixes = new[] { "ownerid", "owningbusinessunit", "owningteam", "owninguser", "statecode", "statuscode" };
+        
+        if (systemPrefixes.Any(prefix => attributeName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+            return false;
+
+        return attributeName.Contains('_');
+    }
+
+    private static (string DataverseFormat, string FormatDetails) GetDataverseFormatInfo(Microsoft.Xrm.Sdk.Metadata.AttributeMetadata attributeMetadata)
+    {
+        var dataverseFormat = string.Empty;
+        var formatDetails = string.Empty;
+
+        switch (attributeMetadata)
+        {
+            case StringAttributeMetadata stringAttr:
+                if (stringAttr.Format != null)
+                {
+                    dataverseFormat = stringAttr.Format.ToString();
+                    switch (stringAttr.Format.Value)
+                    {
+                        case StringFormat.Email:
+                            formatDetails = "Email";
+                            break;
+                        case StringFormat.Url:
+                            formatDetails = "URL";
+                            break;
+                        case StringFormat.Phone:
+                            formatDetails = "Phone";
+                            break;
+                        case StringFormat.Text:
+                            formatDetails = stringAttr.MaxLength > 1 ? "Single Line of Text" : "Single Line of Text";
+                            break;
+                        case StringFormat.TextArea:
+                            formatDetails = "Multiple Lines of Text";
+                            break;
+                        case StringFormat.RichText:
+                            formatDetails = "Rich Text";
+                            break;
+                        case StringFormat.Json:
+                            formatDetails = "JSON";
+                            break;
+                        default:
+                            formatDetails = stringAttr.Format.ToString();
+                            break;
+                    }
+                }
+                else
+                {
+                    dataverseFormat = "String";
+                    formatDetails = stringAttr.MaxLength > 100 ? "Multiple Lines of Text" : "Single Line of Text";
+                }
+                break;
+
+            case MemoAttributeMetadata memoAttr:
+                dataverseFormat = "Memo";
+                formatDetails = "Multiple Lines of Text";
+                break;
+
+            case IntegerAttributeMetadata intAttr:
+                dataverseFormat = "Integer";
+                if (intAttr.Format != null)
+                {
+                    switch (intAttr.Format.Value)
+                    {
+                        case IntegerFormat.Duration:
+                            formatDetails = "Duration";
+                            break;
+                        case IntegerFormat.TimeZone:
+                            formatDetails = "Time Zone";
+                            break;
+                        case IntegerFormat.Language:
+                            formatDetails = "Language";
+                            break;
+                        case IntegerFormat.Locale:
+                            formatDetails = "Locale";
+                            break;
+                        default:
+                            formatDetails = "Whole Number";
+                            break;
+                    }
+                }
+                else
+                {
+                    formatDetails = "Whole Number";
+                }
+                break;
+
+            case BigIntAttributeMetadata:
+                dataverseFormat = "BigInt";
+                formatDetails = "Whole Number (Big Integer)";
+                break;
+
+            case DecimalAttributeMetadata:
+                dataverseFormat = "Decimal";
+                formatDetails = "Decimal Number";
+                break;
+
+            case DoubleAttributeMetadata:
+                dataverseFormat = "Double";
+                formatDetails = "Floating Point Number";
+                break;
+
+            case MoneyAttributeMetadata:
+                dataverseFormat = "Money";
+                formatDetails = "Currency";
+                break;
+
+            case BooleanAttributeMetadata:
+                dataverseFormat = "Boolean";
+                formatDetails = "Yes/No";
+                break;
+
+            case DateTimeAttributeMetadata dateTimeAttr:
+                dataverseFormat = "DateTime";
+                if (dateTimeAttr.Format != null)
+                {
+                    switch (dateTimeAttr.Format.Value)
+                    {
+                        case DateTimeFormat.DateAndTime:
+                            formatDetails = "Date and Time";
+                            break;
+                        case DateTimeFormat.DateOnly:
+                            formatDetails = "Date Only";
+                            break;
+                        default:
+                            formatDetails = "Date and Time";
+                            break;
+                    }
+                }
+                else
+                {
+                    formatDetails = "Date and Time";
+                }
+                break;
+
+            case PicklistAttributeMetadata:
+                dataverseFormat = "Picklist";
+                formatDetails = "Choice";
+                break;
+
+            case MultiSelectPicklistAttributeMetadata:
+                dataverseFormat = "MultiSelectPicklist";
+                formatDetails = "Choices";
+                break;
+
+            case LookupAttributeMetadata lookupAttr:
+                dataverseFormat = "Lookup";
+                var targets = lookupAttr.Targets?.FirstOrDefault() ?? "Unknown";
+                formatDetails = $"Lookup ({targets})";
+                break;
+
+            case ImageAttributeMetadata:
+                dataverseFormat = "Image";
+                formatDetails = "Image";
+                break;
+
+            case FileAttributeMetadata:
+                dataverseFormat = "File";
+                formatDetails = "File";
+                break;
+
+            case UniqueIdentifierAttributeMetadata:
+                dataverseFormat = "UniqueIdentifier";
+                formatDetails = "Unique Identifier";
+                break;
+
+            case EntityNameAttributeMetadata:
+                dataverseFormat = "EntityName";
+                formatDetails = "Entity Name";
+                break;
+
+            default:
+                dataverseFormat = attributeMetadata.AttributeType?.ToString() ?? "Unknown";
+                formatDetails = attributeMetadata.AttributeTypeName?.Value ?? "Unknown";
+                break;
+        }
+
+        return (dataverseFormat, formatDetails);
     }
 }

@@ -38,9 +38,10 @@ public class Program
                 return 1;
             }
 
-            if (string.IsNullOrWhiteSpace(config.PublisherPrefix))
+            // PublisherPrefix can be empty (for OOTB entities) but not null
+            if (config.PublisherPrefix == null)
             {
-                logger.LogError("PublisherPrefix is required in configuration");
+                logger.LogError("PublisherPrefix must be specified in configuration (use empty string for OOTB entities)");
                 return 1;
             }
 
@@ -65,7 +66,8 @@ public class Program
                 logger.LogInformation("Extracting attribute metadata for publisher prefix: {PublisherPrefix}", config.PublisherPrefix);
                 var attributeMetadata = await dataverseService.GetAttributeMetadataAsync(
                     config.PublisherPrefix, 
-                    config.IncludeSystemEntities);
+                    config.IncludeSystemEntities,
+                    config.ExcludeOotbAttributes);
 
                 if (attributeMetadata.Count == 0)
                 {
