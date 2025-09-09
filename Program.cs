@@ -38,10 +38,21 @@ public class Program
                 return 1;
             }
 
-            // PublisherPrefix can be empty (for OOTB entities) but not null
-            if (config.PublisherPrefix == null)
+            // Determine which prefixes to use - support both single and multiple prefix configurations
+            string[] prefixesToUse;
+            if (config.PublisherPrefixes?.Length > 0)
             {
-                logger.LogError("PublisherPrefix must be specified in configuration (use empty string for OOTB entities)");
+                prefixesToUse = config.PublisherPrefixes;
+                logger.LogInformation("Using multiple publisher prefixes: [{Prefixes}]", string.Join(", ", config.PublisherPrefixes));
+            }
+            else if (config.PublisherPrefix != null)
+            {
+                prefixesToUse = new[] { config.PublisherPrefix };
+                logger.LogInformation("Using single publisher prefix: {Prefix}", config.PublisherPrefix);
+            }
+            else
+            {
+                logger.LogError("Either PublisherPrefix or PublisherPrefixes must be specified in configuration");
                 return 1;
             }
 
@@ -63,15 +74,15 @@ public class Program
             try
             {
                 // Extract attribute metadata
-                logger.LogInformation("Extracting attribute metadata for publisher prefix: {PublisherPrefix}", config.PublisherPrefix);
+                logger.LogInformation("Extracting attribute metadata for publisher prefixes: [{Prefixes}]", string.Join(", ", prefixesToUse));
                 var attributeMetadata = await dataverseService.GetAttributeMetadataAsync(
-                    config.PublisherPrefix, 
+                    prefixesToUse, 
                     config.IncludeSystemEntities,
                     config.ExcludeOotbAttributes);
 
                 if (attributeMetadata.Count == 0)
                 {
-                    logger.LogWarning("No attributes found for publisher prefix: {PublisherPrefix}", config.PublisherPrefix);
+                    logger.LogWarning("No attributes found for publisher prefixes: [{Prefixes}]", string.Join(", ", prefixesToUse));
                     return 0;
                 }
 

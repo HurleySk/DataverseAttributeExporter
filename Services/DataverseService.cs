@@ -42,7 +42,7 @@ public class DataverseService : IDataverseService
         }
     }
 
-    public async Task<List<Models.AttributeMetadata>> GetAttributeMetadataAsync(string publisherPrefix, bool includeSystemEntities = false, bool excludeOotbAttributes = true)
+    public async Task<List<Models.AttributeMetadata>> GetAttributeMetadataAsync(string[] publisherPrefixes, bool includeSystemEntities = false, bool excludeOotbAttributes = true)
     {
         if (_serviceClient == null || !_serviceClient.IsReady)
         {
@@ -53,7 +53,7 @@ public class DataverseService : IDataverseService
 
         try
         {
-            _logger.LogInformation("Retrieving entity metadata for publisher prefix: {PublisherPrefix}", publisherPrefix);
+            _logger.LogInformation("Retrieving entity metadata for publisher prefixes: [{PublisherPrefixes}]", string.Join(", ", publisherPrefixes));
 
             // Get all entity metadata
             var retrieveAllEntitiesRequest = new RetrieveAllEntitiesRequest
@@ -72,20 +72,31 @@ public class DataverseService : IDataverseService
                 var entitySchemaName = entityMetadata.SchemaName;
                 bool includeEntity = false;
 
-                // Determine if we should include this entity
-                if (string.IsNullOrEmpty(publisherPrefix))
+                // Determine if we should include this entity based on any of the prefixes
+                foreach (var prefix in publisherPrefixes)
                 {
-                    // Blank prefix means OOTB entities only (no prefixed entities)
-                    includeEntity = entityMetadata.IsCustomEntity == false;
-                }
-                else
-                {
-                    // Non-blank prefix means entities with that specific prefix only
-                    includeEntity = entitySchemaName?.StartsWith(publisherPrefix + "_", StringComparison.OrdinalIgnoreCase) == true;
+                    if (string.IsNullOrEmpty(prefix))
+                    {
+                        // Blank prefix means OOTB entities only (no prefixed entities)
+                        if (entityMetadata.IsCustomEntity == false)
+                        {
+                            includeEntity = true;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        // Non-blank prefix means entities with that specific prefix only
+                        if (entitySchemaName?.StartsWith(prefix + "_", StringComparison.OrdinalIgnoreCase) == true)
+                        {
+                            includeEntity = true;
+                            break;
+                        }
+                    }
                 }
 
                 // Apply system entities filter
-                if (!includeSystemEntities && entityMetadata.IsCustomEntity == false)
+                if (!includeSystemEntities && entityMetadata.IsCustomEntity == false && !publisherPrefixes.Contains(""))
                 {
                     includeEntity = false;
                 }
@@ -101,30 +112,50 @@ public class DataverseService : IDataverseService
 
                 if (entityMetadata.Attributes != null)
                 {
+                    // Find which prefix caused this entity to be included (for display purposes)
+                    string entityMatchingPrefix = string.Empty;
+                    foreach (var prefix in publisherPrefixes)
+                    {
+                        if (string.IsNullOrEmpty(prefix))
+                        {
+                            if (entityMetadata.IsCustomEntity == false)
+                            {
+                                entityMatchingPrefix = prefix;
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            if (entitySchemaName?.StartsWith(prefix + "_", StringComparison.OrdinalIgnoreCase) == true)
+                            {
+                                entityMatchingPrefix = prefix;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Include ALL attributes from this entity (table-level filtering only)
                     foreach (var attributeMetadata in entityMetadata.Attributes)
                     {
                         var attributeSchemaName = attributeMetadata.SchemaName;
-                        bool includeAttribute = true;
-
-                        // Apply attribute filtering based on excludeOotbAttributes setting
-                        if (excludeOotbAttributes)
+                        
+                        // Determine the best prefix to display for this attribute
+                        string attributeDisplayPrefix = entityMatchingPrefix;
+                        
+                        // If the attribute itself matches a specific prefix, show that instead
+                        foreach (var prefix in publisherPrefixes)
                         {
-                            if (string.IsNullOrEmpty(publisherPrefix))
+                            if (!string.IsNullOrEmpty(prefix) && 
+                                attributeSchemaName?.StartsWith(prefix + "_", StringComparison.OrdinalIgnoreCase) == true)
                             {
-                                // For blank prefix (OOTB entities), exclude prefixed attributes
-                                includeAttribute = !HasPrefix(attributeSchemaName);
+                                attributeDisplayPrefix = prefix;
+                                break;
                             }
-                            else
+                            else if (string.IsNullOrEmpty(prefix) && !HasPrefix(attributeSchemaName))
                             {
-                                // For specific prefix, only include attributes with that prefix
-                                includeAttribute = attributeSchemaName?.StartsWith(publisherPrefix + "_", StringComparison.OrdinalIgnoreCase) == true;
+                                attributeDisplayPrefix = prefix;
+                                break;
                             }
-                        }
-                        // If excludeOotbAttributes is false, include all attributes from the included entities
-
-                        if (!includeAttribute)
-                        {
-                            continue;
                         }
 
                         var attributeDisplayName = attributeMetadata.DisplayName?.UserLocalizedLabel?.Label ?? attributeSchemaName ?? "Unknown";
@@ -143,7 +174,7 @@ public class DataverseService : IDataverseService
                             DataverseFormat = dataverseFormat,
                             FormatDetails = formatDetails,
                             AttributeDescription = attributeDescription,
-                            PublisherPrefix = publisherPrefix
+                            PublisherPrefix = attributeDisplayPrefix
                         };
 
                         attributeMetadataList.Add(metadata);
@@ -360,7 +391,8 @@ public class DataverseService : IDataverseService
 
             default:
                 dataverseFormat = attributeMetadata.AttributeType?.ToString() ?? "Unknown";
-                formatDetails = attributeMetadata.AttributeTypeName?.Value ?? "Unknown";
+                formatDetails = dataverseFormat == "Uniqueidentifier" ? "Unique Identifier" : 
+                               (attributeMetadata.AttributeTypeName?.Value ?? "Unknown");
                 break;
         }
 
