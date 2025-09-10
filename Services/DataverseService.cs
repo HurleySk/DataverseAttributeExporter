@@ -162,7 +162,7 @@ public class DataverseService : IDataverseService
                         var attributeType = attributeMetadata.AttributeType?.ToString() ?? "Unknown";
                         var attributeDescription = attributeMetadata.Description?.UserLocalizedLabel?.Label ?? string.Empty;
                         
-                        var (dataverseFormat, formatDetails) = GetDataverseFormatInfo(attributeMetadata);
+                        var (dataverseType, dataverseFormat) = GetDataverseFormatInfo(attributeMetadata);
 
                         var metadata = new Models.AttributeMetadata
                         {
@@ -171,8 +171,8 @@ public class DataverseService : IDataverseService
                             AttributeSchemaName = attributeSchemaName ?? string.Empty,
                             AttributeDisplayName = attributeDisplayName,
                             AttributeType = attributeType,
+                            DataverseType = dataverseType,
                             DataverseFormat = dataverseFormat,
-                            FormatDetails = formatDetails,
                             AttributeDescription = attributeDescription,
                             PublisherPrefix = attributeDisplayPrefix
                         };
@@ -225,177 +225,186 @@ public class DataverseService : IDataverseService
         return attributeName.Contains('_');
     }
 
-    private static (string DataverseFormat, string FormatDetails) GetDataverseFormatInfo(Microsoft.Xrm.Sdk.Metadata.AttributeMetadata attributeMetadata)
+    private static (string DataverseType, string DataverseFormat) GetDataverseFormatInfo(Microsoft.Xrm.Sdk.Metadata.AttributeMetadata attributeMetadata)
     {
+        var dataverseType = string.Empty;
         var dataverseFormat = string.Empty;
-        var formatDetails = string.Empty;
 
         switch (attributeMetadata)
         {
             case StringAttributeMetadata stringAttr:
                 if (stringAttr.Format != null)
                 {
-                    dataverseFormat = stringAttr.Format.ToString();
                     switch (stringAttr.Format.Value)
                     {
                         case StringFormat.Email:
-                            formatDetails = "Email";
+                            dataverseType = "Single Line of Text";
+                            dataverseFormat = "Email";
                             break;
                         case StringFormat.Url:
-                            formatDetails = "URL";
+                            dataverseType = "Single Line of Text";
+                            dataverseFormat = "URL";
                             break;
                         case StringFormat.Phone:
-                            formatDetails = "Phone";
+                            dataverseType = "Single Line of Text";
+                            dataverseFormat = "Phone";
                             break;
                         case StringFormat.Text:
-                            formatDetails = stringAttr.MaxLength > 1 ? "Single Line of Text" : "Single Line of Text";
+                            dataverseType = "Single Line of Text";
+                            dataverseFormat = "Text";
                             break;
                         case StringFormat.TextArea:
-                            formatDetails = "Multiple Lines of Text";
+                            dataverseType = "Multiple Lines of Text";
+                            dataverseFormat = "Text Area";
                             break;
                         case StringFormat.RichText:
-                            formatDetails = "Rich Text";
+                            dataverseType = "Multiple Lines of Text";
+                            dataverseFormat = "Rich Text";
                             break;
                         case StringFormat.Json:
-                            formatDetails = "JSON";
+                            dataverseType = "Single Line of Text";
+                            dataverseFormat = "JSON";
                             break;
                         default:
-                            formatDetails = stringAttr.Format.ToString();
+                            dataverseType = "Single Line of Text";
+                            dataverseFormat = stringAttr.Format.ToString();
                             break;
                     }
                 }
                 else
                 {
-                    dataverseFormat = "String";
-                    formatDetails = stringAttr.MaxLength > 100 ? "Multiple Lines of Text" : "Single Line of Text";
+                    dataverseType = stringAttr.MaxLength > 100 ? "Multiple Lines of Text" : "Single Line of Text";
+                    dataverseFormat = "Text";
                 }
                 break;
 
             case MemoAttributeMetadata memoAttr:
+                dataverseType = "Multiple Lines of Text";
                 dataverseFormat = "Memo";
-                formatDetails = "Multiple Lines of Text";
                 break;
 
             case IntegerAttributeMetadata intAttr:
-                dataverseFormat = "Integer";
+                dataverseType = "Whole Number";
                 if (intAttr.Format != null)
                 {
                     switch (intAttr.Format.Value)
                     {
                         case IntegerFormat.Duration:
-                            formatDetails = "Duration";
+                            dataverseFormat = "Duration";
                             break;
                         case IntegerFormat.TimeZone:
-                            formatDetails = "Time Zone";
+                            dataverseFormat = "Time Zone";
                             break;
                         case IntegerFormat.Language:
-                            formatDetails = "Language";
+                            dataverseFormat = "Language";
                             break;
                         case IntegerFormat.Locale:
-                            formatDetails = "Locale";
+                            dataverseFormat = "Locale";
                             break;
                         default:
-                            formatDetails = "Whole Number";
+                            dataverseFormat = "Integer";
                             break;
                     }
                 }
                 else
                 {
-                    formatDetails = "Whole Number";
+                    dataverseFormat = "Integer";
                 }
                 break;
 
             case BigIntAttributeMetadata:
-                dataverseFormat = "BigInt";
-                formatDetails = "Whole Number (Big Integer)";
+                dataverseType = "Whole Number";
+                dataverseFormat = "Big Integer";
                 break;
 
             case DecimalAttributeMetadata:
+                dataverseType = "Decimal Number";
                 dataverseFormat = "Decimal";
-                formatDetails = "Decimal Number";
                 break;
 
             case DoubleAttributeMetadata:
+                dataverseType = "Floating Point Number";
                 dataverseFormat = "Double";
-                formatDetails = "Floating Point Number";
                 break;
 
             case MoneyAttributeMetadata:
+                dataverseType = "Currency";
                 dataverseFormat = "Money";
-                formatDetails = "Currency";
                 break;
 
             case BooleanAttributeMetadata:
+                dataverseType = "Yes/No";
                 dataverseFormat = "Boolean";
-                formatDetails = "Yes/No";
                 break;
 
             case DateTimeAttributeMetadata dateTimeAttr:
-                dataverseFormat = "DateTime";
                 if (dateTimeAttr.Format != null)
                 {
                     switch (dateTimeAttr.Format.Value)
                     {
                         case DateTimeFormat.DateAndTime:
-                            formatDetails = "Date and Time";
+                            dataverseType = "Date and Time";
+                            dataverseFormat = "Date and Time";
                             break;
                         case DateTimeFormat.DateOnly:
-                            formatDetails = "Date Only";
+                            dataverseType = "Date Only";
+                            dataverseFormat = "Date Only";
                             break;
                         default:
-                            formatDetails = "Date and Time";
+                            dataverseType = "Date and Time";
+                            dataverseFormat = "Date and Time";
                             break;
                     }
                 }
                 else
                 {
-                    formatDetails = "Date and Time";
+                    dataverseType = "Date and Time";
+                    dataverseFormat = "Date and Time";
                 }
                 break;
 
             case PicklistAttributeMetadata:
+                dataverseType = "Choice";
                 dataverseFormat = "Picklist";
-                formatDetails = "Choice";
                 break;
 
             case MultiSelectPicklistAttributeMetadata:
+                dataverseType = "Choices";
                 dataverseFormat = "MultiSelectPicklist";
-                formatDetails = "Choices";
                 break;
 
             case LookupAttributeMetadata lookupAttr:
-                dataverseFormat = "Lookup";
                 var targets = lookupAttr.Targets?.FirstOrDefault() ?? "Unknown";
-                formatDetails = $"Lookup ({targets})";
+                dataverseType = $"Lookup ({targets})";
+                dataverseFormat = "Lookup";
                 break;
 
             case ImageAttributeMetadata:
+                dataverseType = "Image";
                 dataverseFormat = "Image";
-                formatDetails = "Image";
                 break;
 
             case FileAttributeMetadata:
+                dataverseType = "File";
                 dataverseFormat = "File";
-                formatDetails = "File";
                 break;
 
             case UniqueIdentifierAttributeMetadata:
+                dataverseType = "Unique Identifier";
                 dataverseFormat = "UniqueIdentifier";
-                formatDetails = "Unique Identifier";
                 break;
 
             case EntityNameAttributeMetadata:
+                dataverseType = "Entity Name";
                 dataverseFormat = "EntityName";
-                formatDetails = "Entity Name";
                 break;
 
             default:
+                dataverseType = attributeMetadata.AttributeTypeName?.Value ?? "Unknown";
                 dataverseFormat = attributeMetadata.AttributeType?.ToString() ?? "Unknown";
-                formatDetails = dataverseFormat == "Uniqueidentifier" ? "Unique Identifier" : 
-                               (attributeMetadata.AttributeTypeName?.Value ?? "Unknown");
                 break;
         }
 
-        return (dataverseFormat, formatDetails);
+        return (dataverseType, dataverseFormat);
     }
 }

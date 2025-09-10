@@ -35,8 +35,8 @@ public class CsvExportService : ICsvExportService
             csv.WriteField("Attribute Schema Name");
             csv.WriteField("Attribute Display Name");
             csv.WriteField("Attribute Type");
+            csv.WriteField("Dataverse Type");
             csv.WriteField("Dataverse Format");
-            csv.WriteField("Format Details");
             csv.WriteField("Attribute Description");
             csv.WriteField("Publisher Prefix");
             await csv.NextRecordAsync();
@@ -49,8 +49,8 @@ public class CsvExportService : ICsvExportService
                 csv.WriteField(metadata.AttributeSchemaName);
                 csv.WriteField(metadata.AttributeDisplayName);
                 csv.WriteField(metadata.AttributeType);
+                csv.WriteField(metadata.DataverseType);
                 csv.WriteField(metadata.DataverseFormat);
-                csv.WriteField(metadata.FormatDetails);
                 csv.WriteField(metadata.AttributeDescription);
                 csv.WriteField(metadata.PublisherPrefix);
                 await csv.NextRecordAsync();
