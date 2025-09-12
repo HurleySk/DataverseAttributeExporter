@@ -19,7 +19,7 @@ public class DataverseService : IDataverseService
         _connectionString = connectionString;
     }
 
-    public async Task<bool> ConnectAsync()
+    public Task<bool> ConnectAsync()
     {
         try
         {
@@ -29,16 +29,16 @@ public class DataverseService : IDataverseService
             if (!_serviceClient.IsReady)
             {
                 _logger.LogError("Failed to connect to Dataverse. Connection details: {LastError}", _serviceClient.LastError);
-                return false;
+                return Task.FromResult(false);
             }
 
             _logger.LogInformation("Successfully connected to Dataverse environment: {OrgDetail}", _serviceClient.ConnectedOrgFriendlyName);
-            return true;
+            return Task.FromResult(true);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error connecting to Dataverse");
-            return false;
+            return Task.FromResult(false);
         }
     }
 
@@ -161,6 +161,7 @@ public class DataverseService : IDataverseService
                         var attributeDisplayName = attributeMetadata.DisplayName?.UserLocalizedLabel?.Label ?? attributeSchemaName ?? "Unknown";
                         var attributeType = attributeMetadata.AttributeType?.ToString() ?? "Unknown";
                         var attributeDescription = attributeMetadata.Description?.UserLocalizedLabel?.Label ?? string.Empty;
+                        var picklistValues = GetPicklistValues(attributeMetadata);
                         
                         var (dataverseType, dataverseFormat) = GetDataverseFormatInfo(attributeMetadata);
 
@@ -174,6 +175,7 @@ public class DataverseService : IDataverseService
                             DataverseType = dataverseType,
                             DataverseFormat = dataverseFormat,
                             AttributeDescription = attributeDescription,
+                            PicklistValues = picklistValues,
                             PublisherPrefix = attributeDisplayPrefix
                         };
 
@@ -227,8 +229,8 @@ public class DataverseService : IDataverseService
 
     private static (string DataverseType, string DataverseFormat) GetDataverseFormatInfo(Microsoft.Xrm.Sdk.Metadata.AttributeMetadata attributeMetadata)
     {
-        var dataverseType = string.Empty;
-        var dataverseFormat = string.Empty;
+        string dataverseType = string.Empty;
+        string dataverseFormat = string.Empty;
 
         switch (attributeMetadata)
         {
@@ -267,7 +269,7 @@ public class DataverseService : IDataverseService
                             break;
                         default:
                             dataverseType = "Single Line of Text";
-                            dataverseFormat = stringAttr.Format.ToString();
+                            dataverseFormat = stringAttr.Format?.ToString() ?? "Text";
                             break;
                     }
                 }
@@ -406,5 +408,78 @@ public class DataverseService : IDataverseService
         }
 
         return (dataverseType, dataverseFormat);
+    }
+
+    private static string GetPicklistValues(Microsoft.Xrm.Sdk.Metadata.AttributeMetadata attributeMetadata)
+    {
+        var picklistValues = new List<string>();
+
+        switch (attributeMetadata)
+        {
+            case PicklistAttributeMetadata picklistAttr:
+                if (picklistAttr.OptionSet?.Options != null)
+                {
+                    foreach (var option in picklistAttr.OptionSet.Options)
+                    {
+                        var label = option.Label?.UserLocalizedLabel?.Label ?? "Unknown";
+                        var value = option.Value?.ToString() ?? "Unknown";
+                        picklistValues.Add($"{label} ({value})");
+                    }
+                }
+                break;
+
+            case MultiSelectPicklistAttributeMetadata multiSelectAttr:
+                if (multiSelectAttr.OptionSet?.Options != null)
+                {
+                    foreach (var option in multiSelectAttr.OptionSet.Options)
+                    {
+                        var label = option.Label?.UserLocalizedLabel?.Label ?? "Unknown";
+                        var value = option.Value?.ToString() ?? "Unknown";
+                        picklistValues.Add($"{label} ({value})");
+                    }
+                }
+                break;
+
+            case BooleanAttributeMetadata boolAttr:
+                if (boolAttr.OptionSet?.TrueOption != null)
+                {
+                    var trueLabel = boolAttr.OptionSet.TrueOption.Label?.UserLocalizedLabel?.Label ?? "True";
+                    var trueValue = boolAttr.OptionSet.TrueOption.Value?.ToString() ?? "1";
+                    picklistValues.Add($"{trueLabel} ({trueValue})");
+                }
+                if (boolAttr.OptionSet?.FalseOption != null)
+                {
+                    var falseLabel = boolAttr.OptionSet.FalseOption.Label?.UserLocalizedLabel?.Label ?? "False";
+                    var falseValue = boolAttr.OptionSet.FalseOption.Value?.ToString() ?? "0";
+                    picklistValues.Add($"{falseLabel} ({falseValue})");
+                }
+                break;
+
+            case StateAttributeMetadata stateAttr:
+                if (stateAttr.OptionSet?.Options != null)
+                {
+                    foreach (var option in stateAttr.OptionSet.Options)
+                    {
+                        var label = option.Label?.UserLocalizedLabel?.Label ?? "Unknown";
+                        var value = option.Value?.ToString() ?? "Unknown";
+                        picklistValues.Add($"{label} ({value})");
+                    }
+                }
+                break;
+
+            case StatusAttributeMetadata statusAttr:
+                if (statusAttr.OptionSet?.Options != null)
+                {
+                    foreach (var option in statusAttr.OptionSet.Options)
+                    {
+                        var label = option.Label?.UserLocalizedLabel?.Label ?? "Unknown";
+                        var value = option.Value?.ToString() ?? "Unknown";
+                        picklistValues.Add($"{label} ({value})");
+                    }
+                }
+                break;
+        }
+
+        return picklistValues.Any() ? string.Join("; ", picklistValues) : string.Empty;
     }
 }

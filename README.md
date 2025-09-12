@@ -12,7 +12,10 @@ A .NET console application that extracts attribute metadata for all entities wit
   - Attribute Schema Name
   - Attribute Display Name
   - Attribute Type
+  - Dataverse Type
+  - Dataverse Format
   - Attribute Description
+  - Picklist Values (for choice/picklist attributes)
   - Publisher Prefix
 - Outputs data to CSV format for easy analysis
 - Configurable to include or exclude system entities
@@ -102,7 +105,10 @@ The application generates a CSV file with the following columns:
 - **Attribute Schema Name**: The logical name of the attribute
 - **Attribute Display Name**: The display name of the attribute
 - **Attribute Type**: The data type of the attribute (String, Integer, DateTime, etc.)
+- **Dataverse Type**: The Dataverse-specific type (Single Line of Text, Choice, Lookup, etc.)
+- **Dataverse Format**: The specific format within the Dataverse type (Email, Phone, Picklist, etc.)
 - **Attribute Description**: The description of the attribute
+- **Picklist Values**: For choice/picklist attributes, lists all available options with their values (Label (Value); Label (Value))
 - **Publisher Prefix**: The publisher prefix used for filtering
 
 ## Filtering Logic

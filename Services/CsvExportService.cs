@@ -38,6 +38,7 @@ public class CsvExportService : ICsvExportService
             csv.WriteField("Dataverse Type");
             csv.WriteField("Dataverse Format");
             csv.WriteField("Attribute Description");
+            csv.WriteField("Picklist Values");
             csv.WriteField("Publisher Prefix");
             await csv.NextRecordAsync();
 
@@ -52,6 +53,7 @@ public class CsvExportService : ICsvExportService
                 csv.WriteField(metadata.DataverseType);
                 csv.WriteField(metadata.DataverseFormat);
                 csv.WriteField(metadata.AttributeDescription);
+                csv.WriteField(metadata.PicklistValues);
                 csv.WriteField(metadata.PublisherPrefix);
                 await csv.NextRecordAsync();
             }

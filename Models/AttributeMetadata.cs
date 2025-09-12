@@ -10,5 +10,6 @@ public class AttributeMetadata
     public string DataverseType { get; set; } = string.Empty;
     public string DataverseFormat { get; set; } = string.Empty;
     public string AttributeDescription { get; set; } = string.Empty;
+    public string PicklistValues { get; set; } = string.Empty;
     public string PublisherPrefix { get; set; } = string.Empty;
 }
