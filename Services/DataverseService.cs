@@ -376,9 +376,21 @@ public class DataverseService : IDataverseService
                 break;
 
             case LookupAttributeMetadata lookupAttr:
-                var targets = lookupAttr.Targets?.FirstOrDefault() ?? "Unknown";
-                dataverseType = $"Lookup ({targets})";
-                dataverseFormat = "Lookup";
+                // Check if this is a customer field (targets both account and contact)
+                if (lookupAttr.Targets != null && 
+                    lookupAttr.Targets.Length == 2 && 
+                    lookupAttr.Targets.Contains("account") && 
+                    lookupAttr.Targets.Contains("contact"))
+                {
+                    dataverseType = "Customer";
+                    dataverseFormat = "Customer";
+                }
+                else
+                {
+                    var targets = lookupAttr.Targets?.FirstOrDefault() ?? "Unknown";
+                    dataverseType = $"Lookup ({targets})";
+                    dataverseFormat = "Lookup";
+                }
                 break;
 
             case ImageAttributeMetadata:
